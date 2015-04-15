@@ -1,0 +1,278 @@
+- hosts: servers
+  sudo: yes
+  tasks:
+   - name: be sure wget is installed
+     yum: name=wget state=installed
+
+   - name: Install EPEL repository
+     yum: name=http://ftp.riken.jp/Linux/fedora/epel/6/i386/epel-release-6-8.noarch.rpm state=present
+
+   - name: Install libselinux-python
+     yum: name=libselinux-python
+
+   - name: jdk install
+     command: yum install -y java-1.7.0-openjdk-devel
+
+   - name: add group "tomcat"
+     group: name=tomcat
+
+   - name: install tomcat dependency
+     yum: name=yum-priorities state=installed
+
+   - name: add user "tomcat"
+     user: name=tomcat group=tomcat home=/usr/share/tomcat
+     sudo: True
+
+   - name: DL tomcat repo
+     yum: name=http://mirrors.dotsrc.org/jpackage/6.0/generic/free/RPMS/jpackage-release-6-3.jpp6.noarch.rpm state=present
+
+   - name: tomcat install
+     yum: name=tomcat7 state=installed disable_gpg_check=yes
+
+   - name: tomcat auto boot
+     command: chkconfig tomcat7 on
+
+   - name: tomcat start
+     command: /etc/rc.d/init.d/tomcat7 start
+
+   - name: iptables disabled
+     service: name=iptables state=stopped enabled=False
+
+   - name: gitbcket download
+     get_url: url="https://github.com/takezoe/gitbucket/releases/download/2.3/gitbucket.war" dest=/usr/share/tomcat7/webapps/
+
+   - name: get jenkins repo
+     get_url: url="http://pkg.jenkins-ci.org/redhat/jenkins.repo" dest=/etc/yum.repos.d/jenkins.repo
+
+   - name: set jenkins repo
+     command: rpm --import http://pkg.jenkins-ci.org/redhat/jenkins-ci.org.key
+
+   - name: install jenkins
+     yum: name=jenkins state=present
+
+   - name: jenkins http port change
+     replace: >-
+       dest='/etc/sysconfig/jenkins'
+       regexp='JENKINS_PORT="8080"'
+       replace='JENKINS_PORT="8090"'
+
+   - name: jenkins ajp port change
+     replace: >-
+       dest='/etc/sysconfig/jenkins'
+       regexp='JENKINS_AJP_PORT="8009"'
+       replace='JENKINS_AJP_PORT="8010"'
+     tags:
+       - jenkins_ajp_port_fix
+
+   - name: jenkins auto boot
+     command: chkconfig jenkins on
+
+   - name: start jenkins service
+     service: name=jenkins state=started
+     tags:
+       - jenkins_start
+
+   - name: weit jenkins start up
+     command: sleep 30
+
+   - name: jenkins cli jar download
+     command: wget http://localhost:8090/jnlpJars/jenkins-cli.jar
+     args:
+       chdir: /home/vagrant/
+     tags:
+       - jenkins_cli_download
+
+   - name: jenkins multiple-scms.hpi plugin install
+     command: java -jar jenkins-cli.jar -s http://192.168.33.10:8090 install-plugin multiple-scms
+     args:
+       chdir: /home/vagrant/
+     tags:
+       - jenkins_multiple-scms
+
+   - name: jenkins buildtriggerbadge.hpi plugin install
+     command: java -jar jenkins-cli.jar -s http://192.168.33.10:8090 install-plugin buildtriggerbadge
+     args:
+       chdir: /home/vagrant/
+     tags:
+       - jenkins_buildtriggerbadge
+
+   - name: jenkins git.hpi plugin install
+     command: java -jar jenkins-cli.jar -s http://192.168.33.10:8090 install-plugin git
+     args:
+       chdir: /home/vagrant/
+     tags:
+       - jenkins_git
+
+   - name: jenkins gitbucket.hpi plugin install
+     command: java -jar jenkins-cli.jar -s http://192.168.33.10:8090 install-plugin gitbucket
+     args:
+       chdir: /home/vagrant/
+     tags:
+       - jenkins_gitbucket
+
+   - name: install the 'Development tools' package group
+     yum: name="@Development tools" state=present
+
+   - name: install openssl-devel
+     yum: name=openssl-devel state=present
+
+   - name: install readline-devel
+     yum: name=readline-devel state=present
+
+   - name: install zlib-devel
+     yum: name=zlib-devel state=present
+
+   - name: install curl-devel
+     yum: name=curl-devel state=present
+
+   - name: install libyaml-devel
+     yum: name=libyaml-devel state=present
+
+   - name: install libffi-devel
+     yum: name=libffi-devel state=present
+
+   - name: install mysql-server
+     yum: name=mysql-server state=present
+
+   - name: install mysql-devel
+     yum: name=mysql-devel state=present
+
+   - name: install ImageMagick
+     yum: name=ImageMagick state=present
+
+   - name: install ImageMagick-devel
+     yum: name=ImageMagick-devel state=present
+
+   - name: install ipa-pgothic-fonts
+     yum: name=ipa-pgothic-fonts state=present
+
+   - name: ruby download
+     get_url: url=ftp://core.ring.gr.jp/pub/lang/ruby/2.1/ruby-2.1.5.tar.gz dest=/usr/local/src/
+
+   - name: ruby unarchive
+     command: chdir=/usr/local/src tar zxvf /usr/local/src/ruby-2.1.5.tar.gz
+
+   - name: ruby install
+     shell: >
+       ./configure --with-opt-dir=/usr/local --enable-shared --enable-option-checking &&
+       make &&
+       make test &&
+       make install
+       chdir=/usr/local/src/ruby-2.1.5
+       creates=/usr/local/bin/ruby
+
+   - name: ruby set path
+     replace: >
+       dest=/etc/sudoers
+       regexp="^Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin$"
+       replace="Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin"
+
+   - name: bundler install
+     shell: gem install bundler --no-rdoc --no-ri
+     tags:
+       - bundler
+
+   - name: start mysql service
+     service: name=mysqld state=started
+     tags:
+        - mysql
+
+   - name: mysql auto boot
+     command: chkconfig mysqld on
+     tags:
+        - mysql
+
+   - name: checkout redmine
+     subversion: repo=http://svn.redmine.org/redmine/branches/3.0-stable dest=/home/vagrant/redmine
+
+   - name: bundle install redmine
+     command: chdir=/home/vagrant/redmine bundle install --without development test
+
+   - name: gem mysql2 install
+     command: chdir=/home/vagrant/redmine gem install mysql2
+     tags:
+        - redmine
+
+   - name: redmine database config
+     command: chdir=/home/vagrant/redmine cp /home/vagrant/redmine/config/database.yml.example /home/vagrant/redmine/config/database.yml
+     tags:
+        - redmine
+
+   - name: redmine secret token
+     command: rake generate_secret_token
+     args:
+       chdir: /home/vagrant/redmine
+     tags:
+        - redmine
+
+   - name: redmine db create
+     command: /usr/local/bin/bundle exec rake db:create
+     environment:
+         RAILS_ENV: "production"
+     args:
+       chdir: /home/vagrant/redmine
+     tags:
+        - redmine_createdb
+
+   - name: jenkins plugin download
+     get_url: url="https://bitbucket.org/nobiinu_and/redmine_hudson/downloads/redmine_hudson-2.1.2.zip" dest=/home/vagrant/redmine/plugins
+     tags:
+        - redmine_plugin
+
+   - name: unzip jenkins plugin
+     command: unzip -n redmine_hudson-2.1.2.zip
+     args:
+       chdir: /home/vagrant/redmine/plugins
+     tags:
+        - redmine_plugin
+
+   - name: fix redmine jenkins plugin first
+     replace: >-
+        dest='/home/vagrant/redmine/plugins/redmine_hudson/config/routes.rb'
+        regexp="match 'projects/:id/hudson/:action', :controller => 'hudson'"
+        replace="match 'projects/:id/hudson/:action', :controller => 'hudson', via: [:get, :post]"
+     tags:
+        - redmine_plugin_fix
+
+   - name: fix redmine jenkins plugin second
+     replace: >-
+        dest='/home/vagrant/redmine/plugins/redmine_hudson/config/routes.rb'
+        regexp="match 'projects/:id/hudson_settings/:action', :controller => 'hudson_settings'"
+        replace="match 'projects/:id/hudson_settings/:action', :controller => 'hudson_settings', via: [:get, :post]"
+     tags:
+        - redmine_plugin_fix
+
+   - name: redmine db migrate
+     command: rake db:migrate
+     environment:
+         RAILS_ENV: "production"
+     args:
+       chdir: /home/vagrant/redmine
+     tags:
+        - redmine_migrate
+
+   - name: redmine db seed
+     command: rake redmine:load_default_data
+     environment:
+         RAILS_ENV: "production"
+         REDMINE_LANG: "ja"
+     args:
+       chdir: /home/vagrant/redmine
+     tags:
+        - redmine_seed
+
+   - name: regmine github_hook_plugin
+     git: repo=https://github.com/koppen/redmine_github_hook.git  dest=/home/vagrant/redmine/plugins/redmine_github_hook
+     tags:
+       - redmine_github_hook_plugin
+
+   - name: redmine start
+     command: rails s --daemon --bind=0.0.0.0
+     environment:
+         RAILS_ENV: "production"
+     args:
+       chdir: /home/vagrant/redmine
+     tags:
+        - redmine_start
+
+
