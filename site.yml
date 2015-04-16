@@ -32,9 +32,6 @@
    - name: tomcat auto boot
      command: chkconfig tomcat7 on
 
-   - name: tomcat start
-     command: /etc/rc.d/init.d/tomcat7 start
-
    - name: iptables disabled
      service: name=iptables state=stopped enabled=False
 
@@ -275,4 +272,7 @@
      tags:
         - redmine_start
 
-
+   - name: tomcat start
+     command: /etc/rc.d/init.d/tomcat7 start
+     tags:
+        - tomcat_start
