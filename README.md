@@ -35,7 +35,7 @@ ansible-playbook -i hosts site.yml
 構築後は, それぞれ以下のURLでアクセスが出来ます.
 
 - GitBucket
-    - [http://192.168.33.10:8080/gitbucket/](http://192.168.33.10:8080)
+    - [http://192.168.33.10:8080/gitbucket/](http://192.168.33.10:8080/gitbucket/)
 - Jenkins
     - [http://192.168.33.10:8090](http://192.168.33.10:8090)
 - Redmine
